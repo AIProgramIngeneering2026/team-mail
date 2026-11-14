@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: Сервис уведомлений
+  version: 1.0.0
+paths:
+  /jobs:
+    post:
+      summary: Создать уведомление
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/JobRequest'}
+      responses:
+        '201': {description: Job создан, content: {application/json: {schema: {$ref: '#/components/schemas/Job'}}}}
+        '200': {description: Повторный запрос с тем же ключом, возвращён прежний Job, content: {application/json: {schema: {$ref: '#/components/schemas/Job'}}}}
+        '400': {description: Ошибка валидации, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '413': {description: Тело запроса слишком большое, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '422': {description: Тот же Idempotency-Key с другим телом запроса, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '429': {description: Слишком много запросов, заголовок Retry-After, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /jobs/{id}:
+    get:
+      summary: Получить статус
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/Job'}}}}
+        '404': {description: Не найден, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /jobs/{id}/cancel:
+    post:
+      summary: Отменить
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Отменён, content: {application/json: {schema: {$ref: '#/components/schemas/Job'}}}}
+        '404': {description: Не найден, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '409': {description: Переход запрещён, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /health:
+    get:
+      summary: Проверка работоспособности
+      responses:
+        '200': {description: OK}
+components:
+  schemas:
+    JobRequest:
+      type: object
+      required: [recipient, channel, text]
+      properties:
+        recipient: {type: string}
+        channel: {type: string, enum: [email, telegram]}
+        text: {type: string, minLength: 1, maxLength: 4096}
+    Job:
+      type: object
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [accepted, sending, delivered, failed, cancelled]}
+        reason: {type: string, nullable: true}
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, description: "validation_error, not_found, invalid_transition, payload_too_large, idempotency_conflict, too_many_requests"}
+        message: {type: string}
+        field: {type: string, nullable: true, description: "какое поле не так"}
+
+
+
